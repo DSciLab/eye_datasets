@@ -1,10 +1,10 @@
 import glob
 import os
+from PIL import Image
 import pandas as pd
 import shutil
 import pickle
 import numpy as np
-from pandas.core.accessor import register_index_accessor
 from pandas.io.parsers import read_csv
 from tqdm import tqdm
 from multiprocessing import Pool
@@ -22,16 +22,16 @@ def roi_crop(image, resize):
     return image
 
 
-def save_npy(gen_path, jpg_path, image):
-    npy_path = jpg_path_to_npy_path(gen_path, jpg_path)
-    np.save(npy_path, image)
+def save_pil(gen_path, jpg_path, image):
+    pil_path = jpg_path_to_pil_path(gen_path, jpg_path)
+    with open(pil_path, 'wb') as f:
+        pickle.dump(image, f)
 
-
-def jpg_path_to_npy_path(gen_path, jpg_path):
+def jpg_path_to_pil_path(gen_path, jpg_path):
     jpg_name = jpg_path.split('/')[-1]
     image_id = jpg_name.split('.')[0]
-    npy_path = os.path.join(gen_path, f'{image_id}.npy')
-    return npy_path
+    pil_path = os.path.join(gen_path, f'{image_id}.PIL')
+    return pil_path
 
 
 def run(param):
@@ -39,7 +39,6 @@ def run(param):
     original_path = param[1]
     gen_path = param[2]
     resize = param[3]
-    test = param[4]
 
     image = imread(image_path)
     try:
@@ -47,7 +46,8 @@ def run(param):
     except:
         Log.info(image_path)
         image = resize(image)
-    save_npy(gen_path, image_path, image)
+    image = Image.fromarray(np.uint8(image))
+    save_pil(gen_path, image_path, image)
 
 
 class Generator(object):
@@ -81,7 +81,7 @@ class Generator(object):
         task_list = []
         for file_path in self.file_list:
             task_list.append((file_path, self.original_path,
-                            self.gen_path, self.resize, self.test))
+                            self.gen_path, self.resize))
 
         with Pool(self.ps) as p:
             _ = list(tqdm(p.imap(run, task_list), total=self.file_cnt))
@@ -99,8 +99,8 @@ class MetaDataGen(object):
         return data
 
     def name_to_path(self, name):
-        npy_name = f'{name}.npy'
-        return os.path.join(self.gen_path, npy_name)
+        pil_name = f'{name}.PIL'
+        return os.path.join(self.gen_path, pil_name)
 
     def parse(self):
         df = read_csv(self.anno_path)
@@ -121,8 +121,8 @@ def gen_train(opt):
     meta_data = anno_paser.parse()
 
     meta_data_path = os.path.join(opt.train_gen_path, 'meta.pickle')
-    with open(meta_data, 'wb') as f:
-        pickle.dump(meta_data_path, f)
+    with open(meta_data_path, 'wb') as f:
+        pickle.dump(meta_data, f)
 
 
 def gen_test(opt):

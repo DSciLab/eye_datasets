@@ -1,3 +1,6 @@
+import pickle
+import random
+import copy
 import cv2
 
 
@@ -38,3 +41,22 @@ class Resize2D(object):
 
     def __call__(self, image):
         return cv2.resize(image, (self.x, self.y))
+
+
+def read_meta(path):
+    with open(path, 'rb') as f:
+        meta = pickle.load(f)
+    return meta
+
+
+def dataset_split(data, train_ratio):
+    data_len = len(data)
+    train_len  = int(data_len * train_ratio)
+    eval_len = data_len - train_len
+
+    random.shuffle(data)
+    train_data = data
+    eval_data = copy.deepcopy(train_data[-eval_len:])
+    del train_data[-eval_len:]
+
+    return train_data, eval_data

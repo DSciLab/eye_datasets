@@ -1,9 +1,9 @@
 import glob
-from multiprocessing.pool import RUN
 import os
 import shutil
 import re
 import pickle
+from PIL import Image
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -132,9 +132,9 @@ class DataParser(object):
     def translate_age(age):
         return float(age)
 
-    def jpg_to_npy_path(self, jpg_name):
-        name = jpg_name.split('.')
-        return os.path.join(self.gen_path, f'{name}.npy')
+    def jpg_to_pil_path(self, jpg_name):
+        name = jpg_name.split('.')[0]
+        return os.path.join(self.gen_path, f'{name}.PIL')
 
     def parse(self):
         Log.info('Prasing annotations')
@@ -160,8 +160,8 @@ class DataParser(object):
             meta_data.append(
                 {'age': self.translate_age(age),
                  'sex': self.translate_sex(sex),
-                 'left_eye': self.jpg_to_npy_path(left_eye),
-                 'right_eye': self.jpg_to_npy_path(right_eye),
+                 'left_eye': self.jpg_to_pil_path(left_eye),
+                 'right_eye': self.jpg_to_pil_path(right_eye),
                  'left_label': self.dict_to_label(dict_left_labels),
                  'right_label': self.dict_to_label(dict_right_labels),
                  'combo_label': self.combo_label(anno_item)}
@@ -195,11 +195,11 @@ class Generator(object):
     def imread(self, path):
         return imread(path)
 
-    def jpg_path_to_npy_path(self, jpg_path):
+    def jpg_path_to_pil_path(self, jpg_path):
         jpg_name = jpg_path.split('/')[-1]
         image_id = jpg_name.split('.')[0]
-        npy_path = os.path.join(self.gen_path, f'{image_id}.npy')
-        return npy_path
+        pil_path = os.path.join(self.gen_path, f'{image_id}.PIL')
+        return pil_path
 
     def roi_crop(self, image):
         num_labels, roi_list = get_roi(image)
@@ -210,19 +210,21 @@ class Generator(object):
         image = self.resize(image)
         return image
 
-    def save_npy(self, jpg_name, image):
-        npy_name = self.jpg_path_to_npy_path(jpg_name)
-        np.save(npy_name, image)
+    def save_pil(self, jpg_name, image):
+        pil_name = self.jpg_path_to_pil_path(jpg_name)
+        with open(pil_name, 'wb') as f:
+            pickle.dump(image, f)
 
     def run(self, file_path):
         image = self.imread(file_path)
         image = self.roi_crop(image)
-        self.save_npy(file_path, image)
+        image = Image.fromarray(np.uint8(image))
+        self.save_pil(file_path, image)
 
     def generate(self):
         task_list = []
         for file_path in self.file_list:
-            task_list.append((self, file_path))
+            task_list.append((file_path))
 
         with Pool(self.ps) as p:
             _ = list(tqdm(p.imap(self.run, task_list), total=self.file_cnt))
@@ -236,8 +238,8 @@ def gen_train(opt):
     meta_data = anno_paser.parse()
 
     meta_data_path = os.path.join(opt.train_gen_path, 'meta.pickle')
-    with open(meta_data, 'wb') as f:
-        pickle.dump(meta_data_path, f)
+    with open(meta_data_path, 'wb') as f:
+        pickle.dump(meta_data, f)
 
 
 def gen_test(opt):

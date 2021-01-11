@@ -2,6 +2,9 @@ import pickle
 import random
 import copy
 import cv2
+from torch.nn.modules.padding import ReflectionPad1d
+from torchvision import transforms
+from torch import nn
 
 
 def image_to_binimage(image, threshold=10):
@@ -60,3 +63,42 @@ def dataset_split(data, train_ratio):
     del train_data[-eval_len:]
 
     return train_data, eval_data
+
+
+class LinearNormalize(nn.Module):
+    def forward(self, x):
+        return (x - x.min()) / x.max()
+
+
+normalize_fn = transforms.Normalize(mean=[0.473, 0.343, 0.263],
+                                    std=[0.245, 0.183, 0.146])
+linear_normalize_fn = LinearNormalize()
+identity_normalize_fn = transforms.Lambda(lambda X: X)
+
+
+def get_transform(opt):
+    norm_opt = opt.get('normalize', 'linear')
+    if norm_opt == 'linear':
+        normalize = linear_normalize_fn
+    elif norm_opt == 'identity':
+        normalize = identity_normalize_fn
+    else:
+        normalize = normalize_fn
+
+    train_transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.Resize(opt.image_size),
+        transforms.RandomCrop(opt.image_size, 5),
+        transforms.RandomRotation(15),
+        transforms.ToTensor(),
+        normalize,
+    ])
+
+    eval_transform = transforms.Compose([
+        transforms.Resize(opt.image_size),
+        transforms.ToTensor(),
+        normalize,
+    ])
+
+    return train_transform, eval_transform

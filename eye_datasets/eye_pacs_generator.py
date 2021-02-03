@@ -13,6 +13,8 @@ from mlutils import imread, Log
 from .utils import get_roi, Resize2D
 
 
+black_list = []
+
 
 def roi_crop(image, resize):
     num_labels, roi_list = get_roi(image)
@@ -45,6 +47,8 @@ def run(param):
         image = roi_crop(image, resize)
     except:
         Log.info(image_path)
+        image_id = image_path.split('/')[-1].split('.')[0]
+        black_list.append(image_id)
         image = resize(image)
     image = Image.fromarray(np.uint8(image))
     save_pil(gen_path, image_path, image)
@@ -108,6 +112,8 @@ class MetaDataGen(object):
         for i in range(len(df)):
             image_name = df.iloc[i]['image']
             label = df.iloc[i]['level']
+            if image_name in black_list:
+                continue
             image_path = self.name_to_path(image_name)
             output_data.append([image_path, label])
         return output_data
